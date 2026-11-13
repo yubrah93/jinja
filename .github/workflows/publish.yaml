@@ -39,9 +39,33 @@ jobs:
       url: https://pypi.org/project/Jinja2/${{ github.ref_name }}
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     steps:
+      - name: Checkout Rollouts reporter
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - name: Report Rollouts deployment start
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CHANGE_MONITOR_ENV: "publish"
+          CHANGE_MONITOR_SERVICE: "Jinja2"
+          CHANGE_MONITOR_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          CHANGE_MONITOR_ACTOR: "github-actions:${{ github.run_id }}:${{ github.run_attempt }}:${{ github.workflow }}:${{ github.job }}:Jinja2:publish"
+        run: |
+          export DEPLOY_VERSION="$(git rev-parse HEAD)"
+          bash .github/scripts/rollouts-reporter.sh bootstrap
+          bash .github/scripts/rollouts-reporter.sh start
       - uses: pypa/gh-action-pypi-publish@76f52bc884231f62b9a034ebfe128415bbaabdfc # v1.12.4
         with:
           packages-dir: artifact/
+      - name: Report Rollouts deployment finish
+        if: always()
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          CHANGE_MONITOR_ENV: "publish"
+          CHANGE_MONITOR_SERVICE: "Jinja2"
+          CHANGE_MONITOR_SOURCE: ${{ github.server_url }}/${{ github.repository }}
+          CHANGE_MONITOR_ACTOR: "github-actions:${{ github.run_id }}:${{ github.run_attempt }}:${{ github.workflow }}:${{ github.job }}:Jinja2:publish"
+          CHANGE_MONITOR_OUTCOME: ${{ job.status }}
+        run: bash .github/scripts/rollouts-reporter.sh finish
